@@ -1,0 +1,53 @@
+#makefile
+
+MMPM_EXE= cbmz_opt.bdw
+GAS_SRC = ./gaschem
+LIBS = 
+
+AVX = -xCORE-AVX2 -fp-model fast=1 
+
+OPT0 = -O3 -DDEBUG $(AVX) -ip 
+
+# loop interchange
+#
+OPT6 = -DKNL_OPT -DVEC_OPT
+
+OPT1 = -qopt-report=5 -align array64byte
+
+OPT5 = -qopenmp #-DOMP_OPT 
+
+FC = mpiifort -cpp 
+FFLAGS= $(OPT6) $(OPT1) $(OPT2) $(OPT3) -I$(GAS_SRC) $(OPT0) -w -ftz -fno-alias -fno-fnalias -c 
+LDFLAGS= $(OPT6) $(OPT1) $(OPT2) $(OPT3) -I$(GAS_SRC) $(OPT0) -w -ftz -fno-alias -fno-fnalias $(OPT7) -lmpi
+
+# 
+MMPM_SRC = main.f90 \
+	$(GAS_SRC)/gas_data.f90   \
+	$(GAS_SRC)/cbmz.f90
+
+MMPM_OBJ=$(patsubst %.F,%.o,$(patsubst %.F90,%.o,$(patsubst %.f,%.o,$(patsubst %.f90,%.o,$(MMPM_SRC)))))
+MMPM_REPORT=$(patsubst %.o,%.optrpt,$(MMPM_OBJ))
+
+all: $(MMPM_EXE)
+
+$(MMPM_EXE): $(MMPM_OBJ)
+	$(FC) $(OPT5) $(LDFLAGS) $^ $(VTAPI_LIB) -o $@
+$(GAS_SRC)/gas_data.o:$(GAS_SRC)/gas_data.f90 
+	$(FC) $(OPT5) $(OPT4) $(FFLAGS) $< -o $@
+main.o:main.f90 $(GAS_SRC)/cbmz.o 
+	$(FC) $(OPT5) $(FFLAGS) $< -o $@
+$(GAS_SRC)/cbmz.o:$(GAS_SRC)/cbmz.f90 $(GAS_SRC)/gas_data.o
+	$(FC) $(OPT5) $(OPT4) $(FFLAGS) $< -o $@
+
+%.o:%.f
+	$(FC) $(FFLAGS) $< -o $@
+%.o:%.f90
+	$(FC) $(FFLAGS) $< -o $@
+%.o:%.F
+	$(FC) $(FFLAGS) $< -o $@
+%.o:%.F90
+	$(FC) $(FFLAGS) $< -o $@
+
+clean:
+	rm -f $(MMPM_OBJ) $(MMPM_EXE) *.mod $(MMPM_REPORT) ipo_out.optrpt
+
